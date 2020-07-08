@@ -18,7 +18,7 @@ import logging
 logLevel = 0
 
 def uri_parser(uri):
-    """
+    """ parse the source or destination uri
     >>> uri = uri_parser("ssh://myuser@myserver:1234:/my/path")
     >>> uri.group('sourcepath') == '/my/path'
     True
@@ -32,6 +32,8 @@ def uri_parser(uri):
     return re.search (r'ssh://(?P<user>[^@]*)@(?P<server>[^:]*):((?P<port>[^:]*):)?(?P<sourcepath>.*)$', uri)
 
 class ZFSFilesystem:
+    """ need documentation.
+    """
     def __init__(self, uri, sshIdentity = None):
         zfsRE = uri_parser(uri)
         if zfsRE:
@@ -64,6 +66,7 @@ class ZFSFilesystem:
 
 def zfs_get(target):
     """ generate a list containing zfs get command
+    todo: doctest
     """
     ret = ['zfs', 'get', '-Hpd', '1', 'creation', '"' + target.getZPoolFilesystem() + '"']
     logging.debug(str(ret))
@@ -71,6 +74,7 @@ def zfs_get(target):
 
 def zfs_send_incremental(source, predecessorSubvolume, sourceSubvolume):
     """ generate a list containing zfd incremental send command
+    todo: doctest
     """
     ret = [ "'"
           , 'zfs', 'send', '-i'
@@ -82,6 +86,7 @@ def zfs_send_incremental(source, predecessorSubvolume, sourceSubvolume):
 
 def zfs_send(source, sourceSubvolume):
     """ generate a list containing zfs send command
+    todo: doctest
     """
     ret = [ "'"
           , 'zfs', 'send', '"' + source.getZPoolFilesystem() + '@' + sourceSubvolume + '"'
@@ -91,6 +96,7 @@ def zfs_send(source, sourceSubvolume):
 
 def zfs_recv(target):
     """ generate a list containing zfs receive command
+    todo: doctest
     """
     ret = ['zfs', 'receive', '-Fv'
           , '"' + target.getZPoolFilesystem() + '"' ]
