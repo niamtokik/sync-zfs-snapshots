@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.7
 ######################################################################
 # sync-zfs-snapshots - 
 # 
@@ -65,29 +65,36 @@ class ZFSFilesystem:
 def zfs_get(target):
     """ generate a list containing zfs get command
     """
-    ret = ['zfs', 'get', '-Hpd', '1', 'creation', target.getZPoolFilesystem()]
-    logging.debug(ret)
+    ret = ['zfs', 'get', '-Hpd', '1', 'creation', '"' + target.getZPoolFilesystem() + '"']
+    logging.debug(str(ret))
     return ret
 
 def zfs_send_incremental(source, predecessorSubvolume, sourceSubvolume):
     """ generate a list containing zfd incremental send command
     """
-    ret = ['zfs', 'send', '-i', source.getZPoolFilesystem() + '@' + predecessorSubvolume, source.getZPoolFilesystem() + '@' + sourceSubvolume]
-    logging.debug(ret)
+    ret = [ "'"
+          , 'zfs', 'send', '-i'
+          , '"' + source.getZPoolFilesystem() + '@' + predecessorSubvolume + '"'
+          , '"' + source.getZPoolFilesystem() + '@' + sourceSubvolume + '"'
+          , '"']
+    logging.debug(str(ret))
     return ret
 
-def zfs_send(source, predecessorSubvolume, sourceSubvolume):
+def zfs_send(source, sourceSubvolume):
     """ generate a list containing zfs send command
     """
-    ret = ['zfs', 'send', source.getZPoolFilesystem() + '@' + sourceSubvolume]
-    logging.debug(ret)
+    ret = [ "'"
+          , 'zfs', 'send', '"' + source.getZPoolFilesystem() + '@' + sourceSubvolume + '"'
+          , "'" ]
+    logging.debug(str(ret))
     return ret
 
 def zfs_recv(target):
     """ generate a list containing zfs receive command
     """
-    ret = ['zfs', 'receive', '-Fv', target.getZPoolFilesystem()]
-    logging.debug(ret)
+    ret = ['zfs', 'receive', '-Fv'
+          , '"' + target.getZPoolFilesystem() + '"' ]
+    logging.debug(str(ret))
     return ret
 
 def readSubvolumesByCreation (zfsProc):
@@ -160,19 +167,18 @@ def main(argv):
                 sendCmd = source.getZFSCmdLine(zfs_send(source, sourceSubvolume))
 
             receiveCmd = destination.getZFSCmdLine(zfs_recv(destination))
-            fullCmdLine = ' '.join (sendCmd) + ' | dd | ' + ' '.join (receiveCmd)
+            # fullCmdLine = ' '.join(sendCmd) + '|' + 'dd' + '| ' + ' '.join(receiveCmd)
+            fullCmdLine = sendCmd + [ "|" , "dd" , "|" ] + receiveCmd
+            logging.debug("would execute: %s", str(fullCmdLine))
 
             logLevel > 0 and print (fullCmdLine)
-            result = subprocess.call(fullCmdLine, shell = True)
+            result = subprocess.call(' '.join(fullCmdLine), shell=True)
 
             if result:
                 logging.error("error running '%s'", fullCmdLine)
                 sys.exit(1)
     
 if __name__ == "__main__":
-    main(sys.argv[1:])
     logging.basicConfig(level=logging.DEBUG)
+    main(sys.argv[1:])
     sys.exit(0)
-
-
-
