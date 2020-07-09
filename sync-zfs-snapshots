@@ -49,19 +49,22 @@ class ZFSFilesystem:
             self.sourcePath = uri
         logging.debug(vars(self))
 
-    def getZPoolFilesystem (self):
+    def getZPoolFilesystem(self):
         return self.sourcePath
 
-    def getZFSCmdLine (self, args):
+    def getZFSCmdLine(self, args):
         cmdLine = []
         if self.ssh:
-            cmdLine.append ('ssh')
+            cmdLine.append('ssh')
             if self.port:
                 cmdLine.extend (['-p', self.port])
             if self.sshIdentity:
                 cmdLine.extend (['-i', self.sshIdentity])
-            cmdLine.append (self.user + '@' + self.server)
-        cmdLine.extend (args)
+            cmdLine.append(self.user + '@' + self.server)
+            cmdLine.extend("'")
+        cmdLine.extend(args)
+        if self.ssh:
+          cmdLine.extend("'")
         logging.debug(cmdLine)
         return cmdLine
 
@@ -78,7 +81,8 @@ def zfs_get(target):
 def exec_zfs_get(target):
     """ exec zfs_get command
     """
-    command = target.getZFSCmdLine(zfs_get(target))
+    get = zfs_get(target)
+    command = target.getZFSCmdLine(get)
     logging.debug("here the command: %s", command)
     ret = subprocess.Popen(' '.join(command), stdout=subprocess.PIPE, shell=True)
     return ret
@@ -89,11 +93,9 @@ def zfs_send_incremental(source, predecessorSubvolume, sourceSubvolume):
     """
     predecessor = source.getZPoolFilesystem() + '@' + predecessorSubvolume
     volume = source.getZPoolFilesystem() + '@' + sourceSubvolume
-    ret = [ "'"
-          , 'zfs', 'send', '-i'
+    ret = ['zfs', 'send', '-i'
           , double_quoted(predecessor)
-          , double_quoted(volume)
-          , "'"]
+          , double_quoted(volume) ]
     logging.debug(str(ret))
     return ret
 
@@ -116,7 +118,7 @@ def zfs_send(source, sourceSubvolume):
     todo: doctest
     """
     volume = source.getZPoolFilesystem() + '@' + sourceSubvolume
-    ret = [ "'" , 'zfs', 'send', double_quoted(volume) , "'" ]
+    ret = [ 'zfs', 'send', double_quoted(volume) ]
     logging.debug(str(ret))
     return ret
 
@@ -220,3 +222,4 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     main(sys.argv[1:])
     sys.exit(0)
+
