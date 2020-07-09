@@ -1,7 +1,6 @@
 #!/usr/bin/env python3.7
 ######################################################################
-# sync-zfs-snapshots - 
-# 
+# sync-zfs-snapshots
 ######################################################################
 
 import sys
@@ -29,7 +28,9 @@ def uri_parser(uri):
     >>> uri.group('port') == '1234'
     True
     """
-    return re.search (r'ssh://(?P<user>[^@]*)@(?P<server>[^:]*):((?P<port>[^:]*):)?(?P<sourcepath>.*)$', uri)
+    pattern = r'ssh://(?P<user>[^@]*)@(?P<server>[^:]*):((?P<port>[^:]*):)?(?P<sourcepath>.*)$'
+    ret = re.search(pattern, uri)
+    return ret
 
 class ZFSFilesystem:
     """ need documentation.
@@ -68,8 +69,9 @@ def zfs_get(target):
     """ generate a list containing zfs get command
     todo: doctest
     """
+    volume = target.getZPoolFilesystem()
     ret = ['zfs', 'get', '-Hpd', '1', 'creation'
-          , '"' + target.getZPoolFilesystem() + '"']
+          , double_quoted(volume) ]
     logging.debug(str(ret))
     return ret
 
@@ -85,21 +87,36 @@ def zfs_send_incremental(source, predecessorSubvolume, sourceSubvolume):
     """ generate a list containing zfd incremental send command
     todo: doctest
     """
+    predecessor = source.getZPoolFilesystem() + '@' + predecessorSubvolume
+    volume = source.getZPoolFilesystem() + '@' + sourceSubvolume
     ret = [ "'"
           , 'zfs', 'send', '-i'
-          , '"' + source.getZPoolFilesystem() + '@' + predecessorSubvolume + '"'
-          , '"' + source.getZPoolFilesystem() + '@' + sourceSubvolume + '"'
+          , double_quoted(predecessor)
+          , double_quoted(volume)
           , "'"]
     logging.debug(str(ret))
     return ret
+
+def single_quoted(str):
+    """ add single quotes "'" around a string
+    >>> single_quoted("test")
+    "'test'"
+    """
+    return "'" + str + "'"
+
+def double_quoted(str):
+    """ add double quotes '"' around a string
+    >>> double_quoted("test")
+    '"test"'
+    """
+    return '"' + str + '"'
 
 def zfs_send(source, sourceSubvolume):
     """ generate a list containing zfs send command
     todo: doctest
     """
-    ret = [ "'"
-          , 'zfs', 'send', '"' + source.getZPoolFilesystem() + '@' + sourceSubvolume + '"'
-          , "'" ]
+    volume = source.getZPoolFilesystem() + '@' + sourceSubvolume
+    ret = [ "'" , 'zfs', 'send', double_quoted(volume) , "'" ]
     logging.debug(str(ret))
     return ret
 
@@ -107,15 +124,21 @@ def zfs_recv(target):
     """ generate a list containing zfs receive command
     todo: doctest
     """
-    ret = ['zfs', 'receive', '-Fv'
-          , '"' + target.getZPoolFilesystem() + '"' ]
+    volume = target.getZPoolFilesystem()
+    ret = ['zfs', 'receive', '-Fv' , double_quoted(volume) ]
     logging.debug(str(ret))
     return ret
 
 def search_snapshot_creation(line):
-    return re.search( r'.*@(.*)\tcreation\t([0-9]*)\t.*$', line)
+    """ search for creation date pattern
+    """
+    pattern = r'.*@(.*)\tcreation\t([0-9]*)\t.*$'
+    ret = re.search(pattern, line)
+    return ret
 
-def readSubvolumesByCreation (zfsProc):
+def readSubvolumesByCreation(zfsProc):
+    """ todo
+    """
     subvolumesByCreation = {}
     for line in zfsProc.stdout.readlines():
         theLine = line.decode().strip ()
@@ -130,20 +153,22 @@ def readSubvolumesByCreation (zfsProc):
     return subvolumesByCreation
 
 def invertMap(map):
+    """ todo
+    """
     result={}
     for key in sorted (map):
         result[map[key]] = key
     return result
 
-def printMap(map):
-    for key in sorted (map):
-        print (key, map[key])
-
 def execute_command(command):
+    """ execute a command by joining list with space (" ")
+    """
     logging.debug("execute: %s", str(command))
     subprocess.call(' '.join(command), shell=True)
 
 def main(argv):
+    """
+    """
     parser = argparse.ArgumentParser(description='Synchronise all snapshots in a ZFS filesystem to another zfs filesystem.  Useful for synchronising backups.')
     parser.add_argument ("--debug", dest='debug', nargs='?', const=1, type=int, help='Debug level of the application.  Uses debug 1 if flag is passed without a number.')
     parser.add_argument ("--sshIdentity", dest='sshIdentity', nargs=1, help='ssh identity key file to use when ssh-ing to destination servers')
