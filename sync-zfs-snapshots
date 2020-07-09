@@ -68,8 +68,17 @@ def zfs_get(target):
     """ generate a list containing zfs get command
     todo: doctest
     """
-    ret = ['zfs', 'get', '-Hpd', '1', 'creation', '"' + target.getZPoolFilesystem() + '"']
+    ret = ['zfs', 'get', '-Hpd', '1', 'creation'
+          , '"' + target.getZPoolFilesystem() + '"']
     logging.debug(str(ret))
+    return ret
+
+def exec_zfs_get(target):
+    """ exec zfs_get command
+    """
+    command = target.getZFSCmdLine(zfs_get(target))
+    logging.debug("here the command: %s", command)
+    ret = subprocess.Popen(' '.join(command), stdout=subprocess.PIPE, shell=True)
     return ret
 
 def zfs_send_incremental(source, predecessorSubvolume, sourceSubvolume):
@@ -80,7 +89,7 @@ def zfs_send_incremental(source, predecessorSubvolume, sourceSubvolume):
           , 'zfs', 'send', '-i'
           , '"' + source.getZPoolFilesystem() + '@' + predecessorSubvolume + '"'
           , '"' + source.getZPoolFilesystem() + '@' + sourceSubvolume + '"'
-          , '"']
+          , "'"]
     logging.debug(str(ret))
     return ret
 
@@ -103,32 +112,38 @@ def zfs_recv(target):
     logging.debug(str(ret))
     return ret
 
+def search_snapshot_creation(line):
+    return re.search( r'.*@(.*)\tcreation\t([0-9]*)\t.*$', line)
+
 def readSubvolumesByCreation (zfsProc):
-    subvolumesByCreation = { }
-    for line in zfsProc.stdout.readlines ():
-        theLine = line.decode ().strip ()
-        lineRE = re.search( r'.*@(.*)\tcreation\t([0-9]*)\t.*$', theLine)
+    subvolumesByCreation = {}
+    for line in zfsProc.stdout.readlines():
+        theLine = line.decode().strip ()
+        lineRE = search_snapshot_creation(theLine)
         if lineRE:
             snapPath = lineRE.group(1)
             snapCreation = lineRE.group(2)
             subvolumesByCreation[snapCreation] = snapPath
+            logging.warning("found %s", snapPath)
         else:
             logging.warning("bad line: %s", theLine)
     return subvolumesByCreation
 
-def invertMap (map):
+def invertMap(map):
     result={}
     for key in sorted (map):
         result[map[key]] = key
     return result
 
-def printMap (map):
+def printMap(map):
     for key in sorted (map):
         print (key, map[key])
 
-def main(argv):
-    global logLevel
+def execute_command(command):
+    logging.debug("execute: %s", str(command))
+    subprocess.call(' '.join(command), shell=True)
 
+def main(argv):
     parser = argparse.ArgumentParser(description='Synchronise all snapshots in a ZFS filesystem to another zfs filesystem.  Useful for synchronising backups.')
     parser.add_argument ("--debug", dest='debug', nargs='?', const=1, type=int, help='Debug level of the application.  Uses debug 1 if flag is passed without a number.')
     parser.add_argument ("--sshIdentity", dest='sshIdentity', nargs=1, help='ssh identity key file to use when ssh-ing to destination servers')
@@ -138,30 +153,26 @@ def main(argv):
     args = parser.parse_args()
     logging.debug("arguments: %s", str(args))
 
-    if args.debug:
-        logLevel = args.debug
-
-
     source = ZFSFilesystem(args.source, sshIdentity=args.sshIdentity)
     logging.debug("create dataset source object")
     
     destination = ZFSFilesystem(args.destination, sshIdentity = args.sshIdentity)
     logging.debug("create dataset destination object")
     
-    sourceZfsProc = subprocess.Popen(source.getZFSCmdLine(zfs_get(source)), stdout=subprocess.PIPE)
+    sourceZfsProc = exec_zfs_get(source)
     sourceSubvolumesByCreation = readSubvolumesByCreation(sourceZfsProc)
     sourceCreationBySubvolumes = invertMap(sourceSubvolumesByCreation)
     sourceCreatedSorted = sorted(sourceSubvolumesByCreation)
 
-    destinationZfsProc = subprocess.Popen(destination.getZFSCmdLine(zfs_get(destination)), stdout=subprocess.PIPE)
-    destinationSubvolumesByCreation = readSubvolumesByCreation (destinationZfsProc)
+    destinationZfsProc = exec_zfs_get(destination)
+    destinationSubvolumesByCreation = readSubvolumesByCreation(destinationZfsProc)
     destinationCreationBySubvolumes = invertMap(destinationSubvolumesByCreation)
 
     for volIndex, volKey in enumerate(sourceCreatedSorted):
         sourceSubvolume = sourceSubvolumesByCreation[volKey]
 
         if sourceSubvolume in destinationCreationBySubvolumes:
-            logLevel > 0 and print("# Already present:", sourceSubvolume)
+            logging.warning("snapshot already present: %s", sourceSubvolume) 
         else:
             if volIndex > 0:
                 predecessorSubvolumeKey = sourceCreatedSorted[volIndex - 1]
@@ -173,12 +184,8 @@ def main(argv):
                 sendCmd = source.getZFSCmdLine(zfs_send(source, sourceSubvolume))
 
             receiveCmd = destination.getZFSCmdLine(zfs_recv(destination))
-            # fullCmdLine = ' '.join(sendCmd) + '|' + 'dd' + '| ' + ' '.join(receiveCmd)
             fullCmdLine = sendCmd + [ "|" , "dd" , "|" ] + receiveCmd
-            logging.debug("would execute: %s", str(fullCmdLine))
-
-            logLevel > 0 and print (fullCmdLine)
-            result = subprocess.call(' '.join(fullCmdLine), shell=True)
+            result = execute_command(fullCmdLine)
 
             if result:
                 logging.error("error running '%s'", fullCmdLine)
